@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-300: oklch(0.80 0.12 280);
+  --color-brand-400: oklch(0.72 0.16 280);
+  --color-brand-500: oklch(0.64 0.20 280);
+  --color-brand-600: oklch(0.56 0.21 280);
+}
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+    background-image: radial-gradient(60rem 30rem at 100% -10%, oklch(0.64 0.2 280 / 0.12), transparent),
+      radial-gradient(40rem 25rem at -10% 110%, oklch(0.7 0.15 200 / 0.10), transparent);
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-brand-400;
+  }
+}
+
+@utility card {
+  @apply rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-sm backdrop-blur
+    dark:border-white/10 dark:bg-white/5;
+}
+@utility btn {
+  @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium
+    transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+  @apply btn bg-linear-to-r from-brand-500 to-cyan-500 text-white shadow-lg shadow-brand-500/20
+    hover:from-brand-400 hover:to-cyan-400;
+}
+@utility btn-ghost {
+  @apply btn text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/10;
+}
+@utility input {
+  @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm placeholder:text-slate-400
+    focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-400/40
+    dark:border-white/10 dark:bg-slate-900/60;
+}
+@utility label {
+  @apply mb-1 block text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-fade-in { animation: fade-in 0.25s ease-out both; }
