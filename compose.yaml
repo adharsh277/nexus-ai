@@ -1,0 +1,4 @@
+# Lets you run `docker compose up --build` from the repo root.
+# The real definition lives in infra/docker-compose.yml (requires Docker Compose >= 2.20).
+include:
+  - infra/docker-compose.yml
