@@ -10,7 +10,7 @@ import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
+from sqlalchemy import Engine, create_engine, event, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker
 
@@ -25,6 +25,14 @@ TEST_URL = os.environ.get("TEST_DATABASE_URL", settings.test_database_url)
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 is_sqlite = TEST_URL.startswith("sqlite")
+
+
+@event.listens_for(Engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, connection_record):
+    if is_sqlite:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 
 def _ensure_database(url: str) -> None:
@@ -65,11 +73,21 @@ def db(engine):
     session.close()
 
     with engine.begin() as conn:
+        tables = (
+            "document_chunks",
+            "documents",
+            "notifications",
+            "reminders",
+            "messages",
+            "conversations",
+            "tasks",
+            "users",
+        )
         if is_sqlite:
-            for table in ("messages", "conversations", "tasks", "users"):
+            for table in tables:
                 conn.execute(text(f"DELETE FROM {table}"))
         else:
-            conn.execute(text("TRUNCATE messages, conversations, tasks, users CASCADE"))
+            conn.execute(text(f"TRUNCATE {', '.join(tables)} CASCADE"))
 
 
 @pytest.fixture(autouse=True)

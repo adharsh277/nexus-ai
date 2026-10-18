@@ -121,9 +121,18 @@ npm test
 - `registry.py`: Lightweight custom tool registry interface ready for Phase 2 tool bindings.
 - `factory.py`: Resolves provider based on `LLM_PROVIDER`.
 
-### Core API Endpoints (`/api`)
+### Core API Endpoints (`/api` and `/api/v1`)
 - `GET /health`: Health status of database and configured LLM provider.
-- `GET /conversations`: Retrieve user conversations.
-- `POST /conversations`: Start a new conversation thread.
-- `GET /conversations/{id}/messages`: Retrieve conversation message history.
-- `POST /conversations/{id}/messages`: Submit user message, retrieve bounded history context, query Gemini, persist both messages, and return exchange.
+- `GET /tasks`, `POST /tasks`, `PATCH /tasks/{id}`, `DELETE /tasks/{id}`, `POST /tasks/{id}/complete`: Task management.
+- `GET /conversations`, `POST /conversations`: Conversations management.
+- `GET /conversations/{id}/messages`, `POST /conversations/{id}/messages`: Message exchange.
+- `POST /reminders`, `GET /reminders`: Reminder creation and list with status/search filtering.
+- `GET /reminders/{id}`, `PATCH /reminders/{id}`, `DELETE /reminders/{id}`: Reminder CRUD.
+- `POST /reminders/{id}/complete`, `POST /reminders/{id}/cancel`: Reminder completion and cancellation.
+- `GET /notifications`, `GET /notifications/unread-count`: In-app notification delivery.
+- `PATCH /notifications/{id}/read`, `POST /notifications/mark-all-read`: Notification reading.
+
+### Reminder Background Scheduler & Concurrency
+- Integrated into FastAPI lifespan (`REMINDER_POLL_INTERVAL_SECONDS=10.0`).
+- **Restart-Safe**: Overdue pending reminders are notified on reboot.
+- **Concurrency**: PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED` guarantees zero duplicate notifications across multiple workers or replicas.

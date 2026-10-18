@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     llm_temperature: float = 0.7
     llm_max_output_tokens: int = 2048
 
+    # --- Reminder & Scheduler Settings ---
+    reminder_poll_interval_seconds: float = 10.0
+
 
 @lru_cache
 def get_settings() -> Settings:

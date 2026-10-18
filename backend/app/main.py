@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import chat, health, tasks
+from app.api import chat, health, notifications, reminders, tasks
 from app.config import settings
 from app.services import NotFoundError
 
@@ -19,8 +19,11 @@ logger = logging.getLogger("nexus.api")
 
 from contextlib import asynccontextmanager
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.services.reminders import scheduler
+
     # Ensure tables exist and default user is seeded
     try:
         from app.db import Base, engine, SessionLocal
@@ -30,7 +33,19 @@ async def lifespan(app: FastAPI):
             seed_default_user(db)
     except Exception as exc:
         logger.warning("Startup db initialization skipped or failed: %s", exc)
+
+    # Start reminder background scheduler
+    try:
+        await scheduler.start()
+    except Exception as exc:
+        logger.warning("Could not start reminder scheduler: %s", exc)
+
     yield
+
+    try:
+        await scheduler.stop()
+    except Exception as exc:
+        logger.warning("Error stopping reminder scheduler: %s", exc)
 
 app = FastAPI(title="Nexus AI", version="0.1.0", lifespan=lifespan)
 
@@ -95,5 +110,6 @@ async def unhandled_handler(_: Request, exc: Exception):
     return _error(500, "internal_error", "Internal server error")
 
 
-for module in (health, tasks, chat):
+for module in (health, tasks, chat, reminders, notifications):
     app.include_router(module.router, prefix="/api")
+    app.include_router(module.router, prefix="/api/v1")
