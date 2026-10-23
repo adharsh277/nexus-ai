@@ -131,6 +131,31 @@ npm test
 - `POST /reminders/{id}/complete`, `POST /reminders/{id}/cancel`: Reminder completion and cancellation.
 - `GET /notifications`, `GET /notifications/unread-count`: In-app notification delivery.
 - `PATCH /notifications/{id}/read`, `POST /notifications/mark-all-read`: Notification reading.
+- `POST /documents/upload`: Secure document upload (.pdf, .docx, .txt, .md) with 20MB limit, magic byte validation, and async pipeline.
+- `GET /documents`: List authenticated user's documents.
+- `GET /documents/{id}`: Retrieve document details and processing status (`uploaded`, `processing`, `processed`, `failed`).
+- `DELETE /documents/{id}`: Delete document, cascading chunks, and storage file on disk.
+- `GET /documents/{id}/chunks`: Retrieve chunk fragments and page metadata for a document.
+- `POST /documents/{id}/process`: Manually trigger or reprocess document extraction and embeddings.
+- `POST /documents/search`: Semantic vector search using cosine similarity, top-K ranking, and source attribution.
+
+### Document Pipeline & Vector Embeddings (`backend/app/services/`)
+- **Document Extractors (`app/services/documents/extractor.py`)**:
+  - PDF: Page-by-page extraction with page metadata using `pypdf`.
+  - DOCX: Paragraphs and table cell extraction using `python-docx`.
+  - TXT / Markdown: Clean text decoding with fallback and binary character detection.
+- **Overlapping Chunker (`app/services/documents/chunker.py`)**:
+  - Boundary-preserving text chunking (honoring paragraphs and sentences) with configurable chunk size and overlap.
+- **Embedding Provider Abstraction (`app/services/embeddings/`)**:
+  - `BaseEmbeddingProvider`: Abstract interface for text and batch embedding generation.
+  - `GeminiEmbeddingProvider`: Powered by Google GenAI `text-embedding-004` (768 dimensions).
+  - `OllamaEmbeddingProvider`: REST client for local Ollama embedding models (`nomic-embed-text`).
+  - `MockEmbeddingProvider`: Deterministic, offline unit-testing provider with normalized vectors and error simulation.
+- **Database Vector Compatibility & Isolation**:
+  - Dual support: Native PostgreSQL `pgvector` (`<=>` cosine distance operator) when available, with automatic in-memory cosine similarity fallback for SQLite.
+  - Strict dimension validation ensures stored vectors match query vectors and prevents silent corruption or mixing.
+- **Persistent Storage**:
+  - Uploaded documents stored safely with UUID filenames at `/app/storage/documents` in Docker via named volume `document_storage`.
 
 ### Reminder Background Scheduler & Concurrency
 - Integrated into FastAPI lifespan (`REMINDER_POLL_INTERVAL_SECONDS=10.0`).
