@@ -1,4 +1,10 @@
-"""Pydantic request/response schemas."""
+from app.schemas.document import (
+    DocumentChunkRead,
+    DocumentRead,
+    DocumentSearchRequest,
+    DocumentSearchResponse,
+    DocumentSearchResult,
+)
 from app.schemas.reminder import (
     NotificationCounts,
     NotificationRead,
@@ -10,6 +16,11 @@ from app.schemas.task import DashboardRead, TaskCreate, TaskRead, TaskUpdate
 
 __all__ = [
     "DashboardRead",
+    "DocumentChunkRead",
+    "DocumentRead",
+    "DocumentSearchRequest",
+    "DocumentSearchResponse",
+    "DocumentSearchResult",
     "NotificationCounts",
     "NotificationRead",
     "ReminderCreate",
@@ -19,3 +30,4 @@ __all__ = [
     "TaskRead",
     "TaskUpdate",
 ]
+

@@ -19,7 +19,10 @@ from app.db import Base, get_db
 from app.main import app
 from app.models import User
 from app.security import get_current_user
+from app.services.embeddings import MockEmbeddingProvider, override_embedding_provider
 from app.services.llm import MockProvider, override_llm_provider
+
+
 
 TEST_URL = os.environ.get("TEST_DATABASE_URL", settings.test_database_url)
 BACKEND_DIR = Path(__file__).resolve().parents[1]
@@ -97,6 +100,16 @@ def default_mock_llm():
     override_llm_provider(provider)
     yield provider
     override_llm_provider(None)
+
+
+@pytest.fixture(autouse=True)
+def default_mock_embeddings():
+    """Ensure all tests run offline using MockEmbeddingProvider."""
+    provider = MockEmbeddingProvider()
+    override_embedding_provider(provider)
+    yield provider
+    override_embedding_provider(None)
+
 
 
 @pytest.fixture

@@ -27,6 +27,34 @@ class Settings(BaseSettings):
     # --- Reminder & Scheduler Settings ---
     reminder_poll_interval_seconds: float = 10.0
 
+    # --- Document & Storage Settings ---
+    document_storage_dir: str = "/app/storage/documents"
+    document_max_file_size_bytes: int = 20 * 1024 * 1024  # 20 MB
+    document_chunk_size: int = 1000
+    document_chunk_overlap: int = 200
+
+    # --- Embedding Settings ---
+    embedding_provider: str = "gemini"
+    embedding_model: str = "text-embedding-004"
+    embedding_dimensions: int = 768
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_embedding_model: str = "nomic-embed-text"
+
+    def get_storage_path(self) -> "Path":
+        from pathlib import Path
+        target = Path(self.document_storage_dir)
+        try:
+            target.mkdir(parents=True, exist_ok=True)
+            test_file = target / ".write_test"
+            test_file.touch()
+            test_file.unlink()
+            return target
+        except Exception:
+            local_fallback = Path(__file__).resolve().parents[1] / "storage" / "documents"
+            local_fallback.mkdir(parents=True, exist_ok=True)
+            return local_fallback
+
+
 
 @lru_cache
 def get_settings() -> Settings:

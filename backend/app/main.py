@@ -7,9 +7,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import chat, health, notifications, reminders, tasks
+from app.api import chat, documents, health, notifications, reminders, tasks
 from app.config import settings
 from app.services import NotFoundError
+
 
 logging.basicConfig(
     level=settings.log_level.upper(),
@@ -110,6 +111,7 @@ async def unhandled_handler(_: Request, exc: Exception):
     return _error(500, "internal_error", "Internal server error")
 
 
-for module in (health, tasks, chat, reminders, notifications):
+for module in (health, tasks, chat, reminders, notifications, documents):
     app.include_router(module.router, prefix="/api")
     app.include_router(module.router, prefix="/api/v1")
+
