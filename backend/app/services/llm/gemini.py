@@ -1,4 +1,5 @@
 import logging
+import uuid
 from typing import Any
 
 from google import genai
@@ -13,6 +14,7 @@ from app.services.llm.base import (
     LLMResponse,
     LLMTimeoutError,
     LLMUnavailableError,
+    ToolCall,
 )
 
 logger = logging.getLogger("nexus.llm.gemini")
@@ -20,6 +22,8 @@ logger = logging.getLogger("nexus.llm.gemini")
 
 class GeminiProvider(BaseLLMProvider):
     """Google Gemini LLM provider using the modern official google-genai SDK."""
+
+    supports_native_tools: bool = True
 
     def __init__(
         self,
@@ -47,29 +51,51 @@ class GeminiProvider(BaseLLMProvider):
         """Convert standard LLMMessages into google-genai Content structures."""
         contents: list[types.Content] = []
         for msg in messages:
-            # Map role: "user" -> "user", "assistant" -> "model"
-            role = "user" if msg.role == "user" else "model"
-            contents.append(
-                types.Content(
-                    role=role,
-                    parts=[types.Part.from_text(text=msg.content)],
+            if msg.role == "user":
+                role = "user"
+                part = types.Part.from_text(text=msg.content)
+            elif msg.role == "assistant":
+                role = "model"
+                part = types.Part.from_text(text=msg.content)
+            elif msg.role == "tool":
+                role = "user"
+                part = types.Part.from_text(text=f"Tool Execution Result:\n{msg.content}")
+            else:
+                role = "user"
+                part = types.Part.from_text(text=msg.content)
+
+            contents.append(types.Content(role=role, parts=[part]))
+        return contents
+
+    def _build_native_tools(self, tools: list[dict[str, Any]]) -> list[types.Tool]:
+        """Convert standard JSON schemas into google-genai native function declarations."""
+        declarations: list[types.FunctionDeclaration] = []
+        for t in tools:
+            name = t.get("name", "")
+            desc = t.get("description", "")
+            params = t.get("parameters", {})
+            declarations.append(
+                types.FunctionDeclaration(
+                    name=name,
+                    description=desc,
+                    parameters=params,
                 )
             )
-        return contents
+        return [types.Tool(function_declarations=declarations)]
 
     def generate_reply(
         self,
         messages: list[LLMMessage],
         system_prompt: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> LLMResponse:
-        """Call Gemini to generate a response for the given conversation history."""
+        """Call Gemini to generate a response, supporting native function calling if tools provided."""
         if not messages:
             raise LLMError("Cannot generate reply for an empty message list")
 
-        # Exclude system messages from the conversational turns and pass via config
-        turn_messages = [m for m in messages if m.role in ("user", "assistant")]
+        turn_messages = [m for m in messages if m.role in ("user", "assistant", "tool")]
         if not turn_messages:
-            raise LLMError("At least one user message is required to generate a response")
+            raise LLMError("At least one conversational message is required to generate a response")
 
         formatted_contents = self._format_messages(turn_messages)
 
@@ -80,21 +106,63 @@ class GeminiProvider(BaseLLMProvider):
         if system_prompt:
             config_kwargs["system_instruction"] = system_prompt
 
+        if tools:
+            try:
+                config_kwargs["tools"] = self._build_native_tools(tools)
+            except Exception as exc:
+                logger.warning("Failed to build native Gemini tools, continuing without native tools: %s", exc)
+
         config = types.GenerateContentConfig(**config_kwargs)
 
         try:
-            logger.info("Calling Gemini model=%s with %d turns", self.model, len(formatted_contents))
+            logger.info("Calling Gemini model=%s with %d turns (tools=%s)", self.model, len(formatted_contents), bool(tools))
             response = self.client.models.generate_content(
                 model=self.model,
                 contents=formatted_contents,
                 config=config,
             )
 
+            tool_calls: list[ToolCall] = []
+
+            # Check candidate parts for native function calls
+            if getattr(response, "candidates", None) and response.candidates:
+                candidate = response.candidates[0]
+                if getattr(candidate, "content", None) and getattr(candidate.content, "parts", None):
+                    for part in candidate.content.parts:
+                        fc = getattr(part, "function_call", None)
+                        if fc and getattr(fc, "name", None):
+                            args = dict(fc.args or {}) if hasattr(fc, "args") else {}
+                            tool_calls.append(
+                                ToolCall(
+                                    id=f"call_{fc.name}_{uuid.uuid4().hex[:6]}",
+                                    name=fc.name,
+                                    arguments=args,
+                                )
+                            )
+
+            # Fallback check on response.function_calls if present
+            if not tool_calls and getattr(response, "function_calls", None):
+                for fc in response.function_calls:
+                    if getattr(fc, "name", None):
+                        args = dict(fc.args or {}) if hasattr(fc, "args") else {}
+                        tool_calls.append(
+                            ToolCall(
+                                id=f"call_{fc.name}_{uuid.uuid4().hex[:6]}",
+                                name=fc.name,
+                                arguments=args,
+                            )
+                        )
+
             text = response.text or ""
             return LLMResponse(
                 content=text.strip(),
                 model=self.model,
-                raw_response={"finish_reason": str(getattr(response, "candidates", [None])[0].finish_reason) if getattr(response, "candidates", None) else None},
+                tool_calls=tool_calls,
+                raw_response={
+                    "finish_reason": str(getattr(response, "candidates", [None])[0].finish_reason)
+                    if getattr(response, "candidates", None)
+                    else None
+                },
             )
 
         except errors.APIError as exc:
