@@ -7,11 +7,12 @@ from app.services.llm.base import (
     LLMResponse,
     LLMTimeoutError,
     LLMUnavailableError,
+    ToolCall,
 )
 from app.services.llm.factory import create_llm_provider, get_llm_provider, override_llm_provider
 from app.services.llm.gemini import GeminiProvider
 from app.services.llm.mock import MockProvider
-from app.services.llm.registry import ToolDefinition, ToolRegistry, tool_registry
+from app.services.llm.registry import ToolContext, ToolDefinition, ToolRegistry, tool_registry
 
 __all__ = [
     "BaseLLMProvider",
@@ -22,8 +23,10 @@ __all__ = [
     "LLMRateLimitError",
     "LLMTimeoutError",
     "LLMUnavailableError",
+    "ToolCall",
     "GeminiProvider",
     "MockProvider",
+    "ToolContext",
     "ToolDefinition",
     "ToolRegistry",
     "tool_registry",
