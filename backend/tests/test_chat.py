@@ -41,6 +41,23 @@ def test_chat_validation_and_isolation(client, other_user):
     assert r.status_code == 404
 
 
+def test_delete_conversation(client, other_user):
+    conv = client.post("/api/conversations", json={}).json()
+    conv_id = conv["id"]
+
+    # Delete existing conversation
+    r = client.delete(f"/api/conversations/{conv_id}")
+    assert r.status_code == 204
+
+    # Verify 404 on subsequent get
+    assert client.get(f"/api/conversations/{conv_id}/messages").status_code == 404
+
+    # Other user cannot delete a non-owned conversation
+    act_as(other_user)
+    assert client.delete(f"/api/conversations/{conv_id}").status_code == 404
+
+
+
 def test_chat_rate_limit_error_handling(client):
     """Verify rate limit errors from LLM return a graceful assistant message without crashing."""
     override_llm_provider(MockProvider(simulate_error="rate_limit"))

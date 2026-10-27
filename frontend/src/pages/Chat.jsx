@@ -1,23 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { api } from '../services/api.js'
-import { EmptyState, ErrorMessage, Spinner } from '../components/ui.jsx'
+import { ErrorMessage, Spinner } from '../components/ui.jsx'
 import GalaxyLogo from '../components/GalaxyLogo.jsx'
 
 function Bubble({ message }) {
   const mine = message.role === 'user'
   return (
-    <li className={`animate-fade-in flex gap-2.5 ${mine ? 'justify-end' : 'justify-start items-start'}`}>
+    <li className={`animate-fade-in flex gap-3 ${mine ? 'justify-end' : 'justify-start items-start'}`}>
       {!mine && (
-        <div className="mt-0.5 shrink-0">
-          <GalaxyLogo size={28} />
+        <div className="mt-1 shrink-0 rounded-full p-1 bg-brand-500/10 dark:bg-brand-500/20 shadow-xs">
+          <GalaxyLogo size={26} />
         </div>
       )}
       <div
-        className={`max-w-[80%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm shadow-sm ${
+        className={`whitespace-pre-wrap rounded-2xl text-sm md:text-base leading-relaxed shadow-sm transition-all ${
           mine
-            ? 'rounded-br-md bg-linear-to-r from-brand-500 to-cyan-500 text-white'
-            : 'rounded-bl-md border border-slate-200 bg-white/90 dark:border-white/10 dark:bg-white/5 backdrop-blur-sm'
+            ? 'max-w-[85%] md:max-w-2xl rounded-br-xs bg-linear-to-r from-brand-500 via-indigo-500 to-cyan-500 px-5 py-3.5 text-white shadow-brand-500/15'
+            : 'max-w-[92%] md:max-w-3xl rounded-bl-xs border border-slate-200/80 bg-white/95 dark:border-white/10 dark:bg-white/5 px-5 py-4 backdrop-blur-sm text-slate-800 dark:text-slate-100'
         }`}
       >
         <span className="sr-only">{mine ? 'You: ' : 'Assistant: '}</span>
@@ -86,12 +86,43 @@ export default function Chat() {
     }
   }
 
+  async function deleteConversation(e, id) {
+    e.stopPropagation()
+    if (!window.confirm('Delete this conversation? This action cannot be undone.')) return
+    try {
+      await api.deleteConversation(id)
+      setConversations((prev) => (prev ? prev.filter((c) => c.id !== id) : []))
+      if (activeId === id) {
+        select(null)
+        setMessages([])
+      }
+    } catch (err) {
+      setError(err)
+    }
+  }
+
   async function send(e) {
-    e.preventDefault()
+    e?.preventDefault()
     const content = input.trim()
     if (!content || sending) return
-    setSending(true)
+
+    // 1. Clear input field immediately
+    setInput('')
     setError(null)
+
+    // 2. Display the user question immediately in the chat thread
+    const tempId = 'temp-' + Date.now()
+    const optimisticUserMsg = {
+      id: tempId,
+      role: 'user',
+      content,
+      created_at: new Date().toISOString(),
+    }
+    setMessages((prev) => [...prev, optimisticUserMsg])
+
+    // 3. Set sending to true so thinking spinner appears under the question
+    setSending(true)
+
     try {
       let convId = activeId
       if (!convId) {
@@ -100,8 +131,12 @@ export default function Chat() {
         select(convId)
       }
       const { user_message, assistant_message } = await api.sendMessage(convId, content)
-      setMessages((prev) => [...prev, user_message, assistant_message])
-      setInput('')
+      // Replace optimistic message with actual server message and append assistant reply
+      setMessages((prev) => [
+        ...prev.filter((m) => m.id !== tempId),
+        user_message,
+        assistant_message,
+      ])
       loadConversations()
     } catch (err) {
       setError(err)
@@ -110,70 +145,195 @@ export default function Chat() {
     }
   }
 
+  const activeTitle = conversations?.find((c) => c.id === activeId)?.title
+
   return (
-    <div className="grid h-[calc(100vh-8rem)] gap-4 md:grid-cols-[16rem_1fr]">
-      <aside className="card flex min-h-0 flex-col p-3" aria-label="Conversations">
-        <button id="new-conversation-button" type="button" className="btn-primary mb-3 w-full" onClick={newConversation}>
+    <div className="flex h-full w-full gap-3 md:gap-4 min-h-0 overflow-hidden">
+      {/* Conversations Sidebar */}
+      <aside
+        className="card flex w-72 md:w-80 shrink-0 min-h-0 flex-col p-3 shadow-md border border-slate-200 dark:border-white/10"
+        aria-label="Conversations"
+      >
+        <button
+          id="new-conversation-button"
+          type="button"
+          className="btn-primary mb-3 w-full py-2.5 flex items-center justify-center gap-2 text-sm font-semibold shadow-md cursor-pointer"
+          onClick={newConversation}
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
           + New chat
         </button>
+
         {conversations === null ? (
           <Spinner />
         ) : conversations.length === 0 ? (
-          <p className="px-2 text-sm text-slate-500 dark:text-slate-400">No conversations yet.</p>
+          <p className="px-3 py-4 text-center text-xs text-slate-500 dark:text-slate-400">
+            No previous conversations.
+          </p>
         ) : (
-          <ul className="min-h-0 space-y-1 overflow-y-auto">
-            {conversations.map((c) => (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  onClick={() => select(c.id)}
-                  aria-current={c.id === activeId ? 'page' : undefined}
-                  className={`w-full truncate rounded-lg px-3 py-2 text-left text-sm transition ${
-                    c.id === activeId ? 'bg-brand-500/15 font-medium text-brand-600 dark:text-brand-300' : 'hover:bg-slate-100 dark:hover:bg-white/5'
-                  }`}
-                >
-                  {c.title}
-                </button>
-              </li>
-            ))}
+          <ul className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+            {conversations.map((c) => {
+              const selected = c.id === activeId
+              return (
+                <li key={c.id} className="group relative flex items-center">
+                  <button
+                    type="button"
+                    onClick={() => select(c.id)}
+                    aria-current={selected ? 'page' : undefined}
+                    className={`w-full rounded-xl px-3.5 py-2.5 text-left text-sm transition flex items-center gap-2.5 pr-9 ${
+                      selected
+                        ? 'bg-brand-500/15 font-semibold text-brand-600 dark:text-brand-300 shadow-xs'
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <svg className="h-4 w-4 shrink-0 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.8" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                    </svg>
+                    <span className="truncate">{c.title}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => deleteConversation(e, c.id)}
+                    className="absolute right-2 p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition opacity-0 group-hover:opacity-100 focus:opacity-100 cursor-pointer"
+                    title="Delete chat"
+                    aria-label={`Delete ${c.title}`}
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </li>
+              )
+            })}
           </ul>
         )}
       </aside>
 
-      <section className="card flex min-h-0 flex-col p-0" aria-label="Message thread">
-        <h1 className="border-b border-slate-200 px-5 py-3 font-semibold dark:border-white/10">Chat</h1>
-        <div className="min-h-0 flex-1 overflow-y-auto p-5" aria-live="polite">
+      {/* Main Message Thread */}
+      <section
+        className="card flex min-h-0 flex-1 flex-col p-0 shadow-lg border border-slate-200 dark:border-white/10 overflow-hidden"
+        aria-label="Message thread"
+      >
+        {/* Chat Header Bar */}
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-3.5 dark:border-white/10 bg-white/40 dark:bg-slate-950/20 backdrop-blur-xs shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <h1 className="font-semibold text-sm md:text-base text-slate-800 dark:text-slate-100 truncate">
+              {activeTitle || 'Chat'}
+            </h1>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 shrink-0">
+            {activeId && (
+              <button
+                type="button"
+                onClick={(e) => deleteConversation(e, activeId)}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition cursor-pointer"
+                title="Delete this chat"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span className="hidden sm:inline">Delete chat</span>
+              </button>
+            )}
+            <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-white/10">
+              <span className="inline-block h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="hidden sm:inline">Online</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Message Scroll Viewport */}
+        <div className="min-h-0 flex-1 overflow-y-auto px-4 md:px-8 py-6" aria-live="polite">
           {loadingMessages ? (
-            <Spinner label="Loading messages…" />
+            <div className="flex h-full items-center justify-center">
+              <Spinner label="Loading messages…" />
+            </div>
           ) : messages.length === 0 ? (
-            <EmptyState title="Start a conversation" hint="Ask Nexus anything. Your conversation and context will be saved automatically." />
+            <div className="flex h-full flex-col items-center justify-center text-center max-w-lg mx-auto py-8">
+              <div className="mb-4 p-4 rounded-3xl bg-brand-500/10 dark:bg-brand-500/20 shadow-inner">
+                <GalaxyLogo size={52} />
+              </div>
+              <h2 className="text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 mb-2">
+                Start a conversation
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mb-8 max-w-md">
+                Ask Nexus anything. Your conversation and context will be saved automatically.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 w-full text-left">
+                {[
+                  { label: 'Set a reminder', prompt: 'Remind me to check emails tomorrow at 9 AM' },
+                  { label: 'Search documents', prompt: 'Search my documents for project roadmap' },
+                  { label: 'Task summary', prompt: 'List my pending tasks' },
+                  { label: 'Introduction', prompt: 'Hello Nexus! Introduce yourself in one sentence.' },
+                ].map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setInput(item.prompt)
+                    }}
+                    className="p-3.5 rounded-xl border border-slate-200 dark:border-white/10 hover:border-brand-400 dark:hover:border-brand-400/50 hover:bg-slate-50 dark:hover:bg-white/5 text-left text-xs transition group cursor-pointer"
+                  >
+                    <div className="font-semibold text-slate-800 dark:text-slate-200 group-hover:text-brand-500 transition">
+                      {item.label}
+                    </div>
+                    <div className="text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                      {item.prompt}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           ) : (
-            <ul className="space-y-3">
-              {messages.map((m) => (
-                <Bubble key={m.id} message={m} />
-              ))}
-            </ul>
+            <div className="max-w-4xl mx-auto w-full">
+              <ul className="space-y-4">
+                {messages.map((m) => (
+                  <Bubble key={m.id} message={m} />
+                ))}
+              </ul>
+            </div>
           )}
-          {sending && <Spinner label="Nexus is thinking…" />}
+
+          {sending && (
+            <div className="max-w-4xl mx-auto w-full mt-4">
+              <Spinner label="Nexus is thinking…" />
+            </div>
+          )}
           <div ref={endRef} />
         </div>
-        <div className="border-t border-slate-200 p-3 dark:border-white/10">
-          <ErrorMessage error={error} />
-          <form onSubmit={send} className="mt-2 flex gap-2">
-            <label htmlFor="chat-input" className="sr-only">Message</label>
-            <input
-              id="chat-input"
-              className="input"
-              placeholder="Ask Nexus something…"
-              maxLength={4000}
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              disabled={sending}
-            />
-            <button id="send-message-button" type="submit" className="btn-primary" disabled={sending || !input.trim()}>
-              Send
-            </button>
-          </form>
+
+        {/* Input Footer Bar */}
+        <div className="border-t border-slate-200 p-4 dark:border-white/10 bg-white/60 dark:bg-slate-950/40 backdrop-blur-md shrink-0">
+          <div className="max-w-4xl mx-auto w-full">
+            <ErrorMessage error={error} />
+            <form onSubmit={send} className="relative mt-1 flex items-center">
+              <label htmlFor="chat-input" className="sr-only">
+                Message
+              </label>
+              <input
+                id="chat-input"
+                className="input w-full pr-24 py-3.5 px-4 text-sm md:text-base rounded-2xl border-slate-300 dark:border-white/15 bg-white dark:bg-slate-900/90 shadow-md focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20"
+                placeholder="Ask Nexus something…"
+                maxLength={4000}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={sending}
+              />
+              <button
+                id="send-message-button"
+                type="submit"
+                className="btn-primary absolute right-2 top-1/2 -translate-y-1/2 px-4 py-2 rounded-xl text-sm font-semibold shadow-sm transition cursor-pointer"
+                disabled={sending || !input.trim()}
+              >
+                Send
+              </button>
+            </form>
+            <p className="mt-2 text-center text-[11px] text-slate-400 dark:text-slate-500">
+              Nexus AI Cosmic Assistant · Intelligent Conversations & Tool Orchestration
+            </p>
+          </div>
         </div>
       </section>
     </div>

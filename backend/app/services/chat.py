@@ -54,6 +54,13 @@ def get_conversation(db: Session, user_id: uuid.UUID, conversation_id: uuid.UUID
     return conversation
 
 
+def delete_conversation(db: Session, user_id: uuid.UUID, conversation_id: uuid.UUID) -> None:
+    conversation = get_conversation(db, user_id, conversation_id)
+    db.delete(conversation)
+    db.commit()
+
+
+
 def list_messages(db: Session, user_id: uuid.UUID, conversation_id: uuid.UUID) -> list[Message]:
     get_conversation(db, user_id, conversation_id)
     stmt = (

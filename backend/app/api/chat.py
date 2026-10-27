@@ -32,6 +32,16 @@ def create_conversation(
     return chat_service.create_conversation(db, user.id, data.title if data else None)
 
 
+@router.delete("/conversations/{conversation_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_conversation(
+    conversation_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    chat_service.delete_conversation(db, user.id, conversation_id)
+
+
+
 @router.get("/conversations/{conversation_id}/messages", response_model=list[MessageRead])
 def list_messages(
     conversation_id: uuid.UUID,
