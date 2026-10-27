@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import GalaxyLogo from './GalaxyLogo.jsx'
 
 const NAV = [
@@ -19,23 +19,55 @@ function Icon({ d }) {
 
 export default function Layout() {
   const [open, setOpen] = useState(false)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const location = useLocation()
+  const isChat = location.pathname.startsWith('/chat')
 
   return (
-    <div className="flex min-h-screen">
+    <div className={`flex relative ${isChat ? 'h-screen max-h-screen overflow-hidden' : 'min-h-screen'}`}>
       <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 btn-primary">
         Skip to content
       </a>
 
+      {/* Floating expand button when sidebar is collapsed on desktop */}
+      {sidebarCollapsed && (
+        <button
+          type="button"
+          onClick={() => setSidebarCollapsed(false)}
+          className="fixed top-3 left-3 z-30 hidden md:flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white/90 px-3 py-2 text-xs font-semibold shadow-md backdrop-blur-md transition hover:bg-slate-100 dark:border-white/10 dark:bg-slate-900/90 dark:text-slate-200 dark:hover:bg-white/10 cursor-pointer"
+          title="Show navigation sidebar"
+          aria-label="Expand sidebar"
+        >
+          <Icon d="M4 6h16M4 12h16M4 18h16" />
+          <span>Menu</span>
+        </button>
+      )}
+
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 transform border-r border-slate-200 bg-white/90 p-4 backdrop-blur transition-transform
-          dark:border-white/10 dark:bg-slate-950/80 md:static md:translate-x-0 ${open ? 'translate-x-0' : '-translate-x-full'}`}
+        className={`fixed inset-y-0 left-0 z-40 w-64 shrink-0 transform border-r border-slate-200 bg-white/90 p-4 backdrop-blur transition-transform
+          dark:border-white/10 dark:bg-slate-950/80 ${
+            sidebarCollapsed ? 'md:hidden' : 'md:static md:translate-x-0'
+          } ${open ? 'translate-x-0' : '-translate-x-full'}`}
       >
-        <div className="mb-8 flex items-center gap-3 px-2">
-          <GalaxyLogo size={40} />
-          <div>
-            <p className="font-bold text-base leading-tight tracking-wide bg-gradient-to-r from-sky-400 via-indigo-200 to-fuchsia-400 bg-clip-text text-transparent">Nexus AI</p>
-            <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Cosmic Assistant</p>
+        <div className="mb-8 flex items-center justify-between px-2">
+          <div className="flex items-center gap-3">
+            <GalaxyLogo size={38} />
+            <div>
+              <p className="font-bold text-base leading-tight tracking-wide bg-gradient-to-r from-sky-400 via-indigo-200 to-fuchsia-400 bg-clip-text text-transparent">Nexus AI</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-slate-400 dark:text-slate-500">Cosmic Assistant</p>
+            </div>
           </div>
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed(true)}
+            className="hidden md:flex p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-white/10 transition cursor-pointer"
+            title="Hide sidebar"
+            aria-label="Collapse sidebar"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            </svg>
+          </button>
         </div>
         <nav aria-label="Main">
           <ul className="space-y-1">
@@ -60,13 +92,13 @@ export default function Layout() {
             ))}
           </ul>
         </nav>
-        <p className="absolute bottom-4 left-6 text-xs text-slate-400">Phase 1 · v0.1</p>
+        <p className="absolute bottom-4 left-6 text-xs text-slate-400">Phase 2 · v0.2</p>
       </aside>
 
       {open && <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setOpen(false)} aria-hidden="true" />}
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10 md:hidden">
+      <div className="flex min-w-0 flex-1 flex-col h-full overflow-hidden">
+        <header className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10 md:hidden shrink-0">
           <button type="button" className="btn-ghost px-2" aria-label="Open navigation" aria-expanded={open} onClick={() => setOpen(true)}>
             <Icon d="M4 6h16M4 12h16M4 18h16" />
           </button>
@@ -75,7 +107,14 @@ export default function Layout() {
             <span className="font-bold text-sm tracking-wide bg-gradient-to-r from-sky-400 via-indigo-200 to-fuchsia-400 bg-clip-text text-transparent">Nexus AI</span>
           </div>
         </header>
-        <main id="main" className="mx-auto w-full max-w-6xl flex-1 p-4 md:p-8">
+        <main
+          id="main"
+          className={
+            isChat
+              ? 'w-full flex-1 flex flex-col min-h-0 h-full p-2 md:p-3 overflow-hidden'
+              : 'mx-auto w-full max-w-6xl flex-1 p-4 md:p-8'
+          }
+        >
           <Outlet />
         </main>
       </div>
