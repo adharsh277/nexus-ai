@@ -81,8 +81,26 @@ def get_bounded_history(
     return list(db.scalars(stmt))
 
 
-def generate_reply(history_messages: list[Message], user_content: str) -> str:
-    """Generate an AI response using the configured LLM provider and conversation history."""
+from app.agent.orchestrator import default_orchestrator
+
+
+def generate_reply(
+    history_messages: list[Message],
+    user_content: str,
+    db: Session | None = None,
+    user_id: uuid.UUID | None = None,
+    conversation_id: uuid.UUID | None = None,
+) -> str:
+    """Generate an AI response using the agent orchestrator (with tools) or direct LLM fallback."""
+    if db is not None and user_id is not None:
+        return default_orchestrator.run(
+            db=db,
+            user_id=user_id,
+            history_messages=history_messages,
+            user_content=user_content,
+            conversation_id=conversation_id,
+        )
+
     llm_messages: list[LLMMessage] = []
     for m in history_messages:
         role = "user" if m.role == MessageRole.user else "assistant"
@@ -141,8 +159,14 @@ def send_message(
     if conversation.title == "New conversation":
         conversation.title = content[:60].strip()
 
-    # 2. Generate Reply
-    reply_content = generate_reply(history, content)
+    # 2. Generate Reply via Orchestrator with Tools
+    reply_content = generate_reply(
+        history,
+        content,
+        db=db,
+        user_id=user_id,
+        conversation_id=conversation_id,
+    )
 
     # 3. Persist Assistant Message
     assistant_msg = Message(
@@ -158,3 +182,4 @@ def send_message(
     db.refresh(assistant_msg)
 
     return user_msg, assistant_msg
+
