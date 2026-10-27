@@ -50,6 +50,8 @@ export const api = {
 
   listConversations: () => request('/conversations'),
   createConversation: (title) => request('/conversations', { method: 'POST', body: title ? { title } : {} }),
+  deleteConversation: (conversationId) =>
+    request(`/conversations/${conversationId}`, { method: 'DELETE' }),
   listMessages: (conversationId) => request(`/conversations/${conversationId}/messages`),
   sendMessage: (conversationId, content) =>
     request(`/conversations/${conversationId}/messages`, { method: 'POST', body: { content } }),
