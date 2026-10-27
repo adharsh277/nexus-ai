@@ -12,10 +12,18 @@ class LLMMessage:
 
 
 @dataclass
+class ToolCall:
+    id: str
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass
 class LLMResponse:
     content: str
     model: str
     raw_response: dict[str, Any] | None = None
+    tool_calls: list[ToolCall] = field(default_factory=list)
 
 
 class LLMError(Exception):
@@ -58,11 +66,14 @@ class LLMUnavailableError(LLMError):
 class BaseLLMProvider(ABC):
     """Abstract base class for all LLM providers."""
 
+    supports_native_tools: bool = False
+
     @abstractmethod
     def generate_reply(
         self,
         messages: list[LLMMessage],
         system_prompt: str | None = None,
+        tools: list[dict[str, Any]] | None = None,
     ) -> LLMResponse:
         """Synchronously generate an LLM response given a bounded conversation history."""
         raise NotImplementedError
