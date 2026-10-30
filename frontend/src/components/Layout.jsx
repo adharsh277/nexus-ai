@@ -1,10 +1,13 @@
 import { useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import GalaxyLogo from './GalaxyLogo.jsx'
+import NotificationBell from './NotificationBell.jsx'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: 'M3 12l9-9 9 9M5 10v10h14V10' },
   { to: '/tasks', label: 'Tasks', icon: 'M9 11l3 3 8-8M4 12v7a1 1 0 001 1h14' },
+  { to: '/reminders', label: 'Reminders', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { to: '/documents', label: 'My Documents', icon: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
   { to: '/chat', label: 'Chat', icon: 'M4 5h16v11H8l-4 4z' },
   { to: '/settings', label: 'Settings', icon: 'M12 15a3 3 0 100-6 3 3 0 000 6zM4 12h2m12 0h2M12 4v2m0 12v2' },
 ]
@@ -80,7 +83,7 @@ export default function Layout() {
                   className={({ isActive }) =>
                     `flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
                       isActive
-                        ? 'bg-brand-500/15 text-brand-600 dark:text-brand-300'
+                        ? 'bg-brand-500/15 text-brand-600 dark:text-brand-300 shadow-xs'
                         : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/5'
                     }`
                   }
@@ -98,21 +101,38 @@ export default function Layout() {
       {open && <div className="fixed inset-0 z-30 bg-black/40 md:hidden" onClick={() => setOpen(false)} aria-hidden="true" />}
 
       <div className="flex min-w-0 flex-1 flex-col h-full overflow-hidden">
-        <header className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 dark:border-white/10 md:hidden shrink-0">
-          <button type="button" className="btn-ghost px-2" aria-label="Open navigation" aria-expanded={open} onClick={() => setOpen(true)}>
-            <Icon d="M4 6h16M4 12h16M4 18h16" />
-          </button>
-          <div className="flex items-center gap-2">
-            <GalaxyLogo size={28} />
-            <span className="font-bold text-sm tracking-wide bg-gradient-to-r from-sky-400 via-indigo-200 to-fuchsia-400 bg-clip-text text-transparent">Nexus AI</span>
+        {/* Top Header with Notification Bell */}
+        <header className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5 dark:border-white/10 bg-white/60 dark:bg-slate-950/40 backdrop-blur-md shrink-0">
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              className="btn-ghost px-2 md:hidden"
+              aria-label="Open navigation"
+              aria-expanded={open}
+              onClick={() => setOpen(true)}
+            >
+              <Icon d="M4 6h16M4 12h16M4 18h16" />
+            </button>
+            <div className="flex items-center gap-2 md:hidden">
+              <GalaxyLogo size={28} />
+              <span className="font-bold text-sm tracking-wide bg-gradient-to-r from-sky-400 via-indigo-200 to-fuchsia-400 bg-clip-text text-transparent">Nexus AI</span>
+            </div>
+            <div className="hidden md:flex items-center gap-2 text-xs text-slate-400">
+              <span>Personal Automation & Document Assistant</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <NotificationBell />
           </div>
         </header>
+
         <main
           id="main"
           className={
             isChat
               ? 'w-full flex-1 flex flex-col min-h-0 h-full p-2 md:p-3 overflow-hidden'
-              : 'mx-auto w-full max-w-6xl flex-1 p-4 md:p-8'
+              : 'mx-auto w-full max-w-6xl flex-1 p-4 md:p-8 overflow-y-auto'
           }
         >
           <Outlet />
