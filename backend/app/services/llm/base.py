@@ -9,6 +9,8 @@ LLMRole = Literal["user", "assistant", "system", "tool"]
 class LLMMessage:
     role: LLMRole
     content: str
+    tool_calls: list["ToolCall"] | None = None
+    tool_name: str | None = None
 
 
 @dataclass
