@@ -71,38 +71,66 @@ def parse_fallback_tool_call(content: str) -> ToolCall | None:
         if start != -1 and end != -1 and end > start:
             candidate_str = trimmed[start : end + 1]
 
-    if not candidate_str:
-        return None
+    if candidate_str:
+        try:
+            data = json.loads(candidate_str)
+            if isinstance(data, dict):
+                tool_name = None
+                tool_args: dict[str, Any] = {}
+                if "tool_call" in data and isinstance(data["tool_call"], dict):
+                    tool_name = data["tool_call"].get("name")
+                    tool_args = data["tool_call"].get("arguments", {})
+                elif "tool" in data:
+                    tool_name = data.get("tool")
+                    tool_args = data.get("arguments", {})
+                elif "name" in data and "arguments" in data:
+                    tool_name = data.get("name")
+                    tool_args = data.get("arguments", {})
 
-    try:
-        data = json.loads(candidate_str)
-        if not isinstance(data, dict):
-            return None
+                if tool_name and isinstance(tool_name, str):
+                    if not isinstance(tool_args, dict):
+                        tool_args = {}
+                    call_id = f"call_{uuid.uuid4().hex[:8]}"
+                    return ToolCall(id=call_id, name=tool_name, arguments=tool_args)
+        except (json.JSONDecodeError, ValueError):
+            pass
 
-        # Support {"tool": "name", "arguments": {...}}
-        # Support {"tool_call": {"name": "name", "arguments": {...}}}
-        # Support {"name": "name", "arguments": {...}}
-        tool_name = None
-        tool_args: dict[str, Any] = {}
+    # 3. Check for <tool_code> ... </tool_code> or Python-like call safely via AST (never exec/eval)
+    tool_code_match = re.search(r"<tool_code>\s*([\s\S]*?)\s*</tool_code>", trimmed)
+    if tool_code_match or "default_api." in trimmed:
+        code_to_parse = tool_code_match.group(1).strip() if tool_code_match else trimmed
+        import ast
+        try:
+            tree = ast.parse(code_to_parse)
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Call):
+                    func_name = None
+                    if isinstance(node.func, ast.Name):
+                        func_name = node.func.id
+                    elif isinstance(node.func, ast.Attribute):
+                        func_name = node.func.attr
+                    # Ignore wrapper calls like print(...)
+                    if func_name == "print" and node.args:
+                        first_arg = node.args[0]
+                        if isinstance(first_arg, ast.Call):
+                            node = first_arg
+                            if isinstance(node.func, ast.Name):
+                                func_name = node.func.id
+                            elif isinstance(node.func, ast.Attribute):
+                                func_name = node.func.attr
 
-        if "tool_call" in data and isinstance(data["tool_call"], dict):
-            tool_name = data["tool_call"].get("name")
-            tool_args = data["tool_call"].get("arguments", {})
-        elif "tool" in data:
-            tool_name = data.get("tool")
-            tool_args = data.get("arguments", {})
-        elif "name" in data and "arguments" in data:
-            tool_name = data.get("name")
-            tool_args = data.get("arguments", {})
-
-        if tool_name and isinstance(tool_name, str):
-            if not isinstance(tool_args, dict):
-                tool_args = {}
-            call_id = f"call_{uuid.uuid4().hex[:8]}"
-            return ToolCall(id=call_id, name=tool_name, arguments=tool_args)
-
-    except (json.JSONDecodeError, ValueError) as exc:
-        logger.debug("Content appeared to contain JSON but parsing failed: %s", exc)
+                    if func_name and func_name != "print":
+                        kwargs: dict[str, Any] = {}
+                        for kw in node.keywords:
+                            if kw.arg:
+                                try:
+                                    kwargs[kw.arg] = ast.literal_eval(kw.value)
+                                except Exception:
+                                    pass
+                        call_id = f"call_{uuid.uuid4().hex[:8]}"
+                        return ToolCall(id=call_id, name=func_name, arguments=kwargs)
+        except Exception as exc:
+            logger.debug("Safe AST parsing of tool_code failed: %s", exc)
 
     return None
 

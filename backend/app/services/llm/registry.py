@@ -35,6 +35,46 @@ class ToolDefinition:
     requires_confirmation: bool = False
 
 
+def dereference_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Resolve all $ref and anyOf constructs into flat OpenAPI-compliant schemas for LLM tools."""
+    defs = schema.get("$defs", {})
+
+    def _resolve(node: Any) -> Any:
+        if not isinstance(node, dict):
+            return node
+        res: dict[str, Any] = {}
+        for k, v in node.items():
+            if k == "$ref":
+                ref_key = v.split("/")[-1]
+                if ref_key in defs:
+                    res.update(_resolve(defs[ref_key]))
+            elif k == "anyOf":
+                non_nulls = [_resolve(sub) for sub in v if not (isinstance(sub, dict) and sub.get("type") == "null")]
+                if non_nulls:
+                    first = non_nulls[0]
+                    if isinstance(first, dict):
+                        res.update(first)
+            elif isinstance(v, dict):
+                res[k] = _resolve(v)
+            elif isinstance(v, list):
+                res[k] = [_resolve(item) for item in v]
+            else:
+                res[k] = v
+        res.pop("title", None)
+        res.pop("additionalProperties", None)
+        return res
+
+    resolved_properties = {}
+    for p_name, p_val in schema.get("properties", {}).items():
+        resolved_properties[p_name] = _resolve(p_val)
+
+    return {
+        "type": "object",
+        "properties": resolved_properties,
+        "required": schema.get("required", []),
+    }
+
+
 class ToolRegistry:
     """In-memory registry of validated agent tools."""
 
@@ -54,13 +94,7 @@ class ToolRegistry:
         """Register a tool with optional Pydantic input model and handler."""
         if input_model is not None and parameters is None:
             raw_schema = input_model.model_json_schema()
-            properties = raw_schema.get("properties", {})
-            required = raw_schema.get("required", [])
-            parameters = {
-                "type": "object",
-                "properties": properties,
-                "required": required,
-            }
+            parameters = dereference_schema(raw_schema)
         elif parameters is None:
             parameters = {"type": "object", "properties": {}}
 

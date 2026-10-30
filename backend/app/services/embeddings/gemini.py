@@ -20,7 +20,7 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
     def __init__(
         self,
         api_key: str,
-        model_name: str = "text-embedding-004",
+        model_name: str = "gemini-embedding-001",
         dimensions: int = 768,
         timeout_seconds: float = 30.0,
     ):
@@ -60,11 +60,13 @@ class GeminiEmbeddingProvider(BaseEmbeddingProvider):
             return []
 
         try:
+            from google.genai import types
             logger.info("Calling Gemini embed_content model=%s for %d text(s)", self._model_name, len(texts))
-            # google-genai supports passing list of strings or single string in contents
+            config = types.EmbedContentConfig(output_dimensionality=self._dimensions)
             response = self.client.models.embed_content(
                 model=self._model_name,
                 contents=texts,
+                config=config,
             )
 
             if not response or not response.embeddings:
